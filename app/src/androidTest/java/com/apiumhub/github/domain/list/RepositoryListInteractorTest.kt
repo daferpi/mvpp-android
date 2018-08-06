@@ -13,20 +13,20 @@ class RepositoryListInteractorTest {
     @Test
     fun test_find_all_repositories_should_call_on_repos_found() {
         val countDownLatch = CountDownLatch(1)
-        sut.onReposFound {
-            countDownLatch.countDown()
-        }
-        sut.findAll()
+//        sut.onReposFound {
+//            countDownLatch.countDown()
+//        }
+//        sut.findAll()
         countDownLatch.await()
     }
 
     @Test
     fun test_search_repositories_should_call_on_repos_found() {
         val countDownLatch = CountDownLatch(1)
-        sut.onReposFound {
-            countDownLatch.countDown()
-        }
-        sut.search(someSearchQuery)
+//        sut.onReposFound {
+//            countDownLatch.countDown()
+//        }
+//        sut.search(someSearchQuery)
         countDownLatch.await()
     }
 }

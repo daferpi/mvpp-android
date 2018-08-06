@@ -1,42 +1,22 @@
 package com.apiumhub.github.domain.repository.list
 
 import com.apiumhub.github.data.IGithubRepository
+import com.apiumhub.github.data.Result
 import com.apiumhub.github.domain.entity.Repository
 import com.apiumhub.github.presentation.list.IRepositoryListService
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.PublishSubject
 
 class RepositoryListInteractor(private val repository: IGithubRepository) : IRepositoryListService {
 
-    private val reposFoundSubject: PublishSubject<List<Repository>> = PublishSubject.create()
-
-    override fun findAll() {
-        repository
-                .findAllRepositories()
-                .subscribeOn(Schedulers.newThread())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    reposFoundSubject.onNext(it)
-                }
+    override suspend fun findAll(): Result<List<Repository>> {
+        return repository.findAllRepositories()
     }
 
-    override fun search(query: String) {
-        repository.searchRepositories(query)
-                .subscribeOn(Schedulers.newThread())
-                .observeOn(AndroidSchedulers.mainThread())
-                .filter { it.items != null }
-                .map {
-                    it.items!!
-                }
-                .subscribe {
-                    reposFoundSubject.onNext(it)
-                }
-    }
-
-    override fun onReposFound(func: (repositories: List<Repository>) -> Unit) {
-        reposFoundSubject.subscribe {
-            func(it)
+    override suspend fun search(query: String):Result<List<Repository>> {
+        val result = repository.searchRepositories(query)
+        return when (result) {
+            is Result.Success -> Result.Success(if (result.data.items != null) result.data.items else listOf<Repository>())
+            is Result.Error -> Result.Error(result.exception)
         }
+
     }
 }

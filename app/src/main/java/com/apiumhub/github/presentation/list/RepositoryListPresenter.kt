@@ -1,13 +1,17 @@
 package com.apiumhub.github.presentation.list
 
+import com.apiumhub.github.asyncAwait
 import com.apiumhub.github.data.IGithubRepository
+import com.apiumhub.github.data.Result
 import com.apiumhub.github.domain.repository.list.RepositoryListInteractor
 import com.apiumhub.github.domain.entity.Repository
+import com.apiumhub.github.launchAsync
 
 interface IRepositoryListView {
     fun loadItems(func: () -> Unit)
     fun searchItems(func: (query: String) -> Unit)
     fun itemsLoaded(items: List<Repository>)
+    fun errorCall(error:Throwable)
 
     companion object {
         fun create() = RepositoryListFragment.newInstance()
@@ -15,9 +19,8 @@ interface IRepositoryListView {
 }
 
 interface IRepositoryListService {
-    fun findAll()
-    fun search(query: String)
-    fun onReposFound(func: (List<Repository>) -> Unit)
+    suspend fun findAll():Result<List<Repository>>
+    suspend fun search(query: String):Result<List<Repository>>
 
     companion object {
         fun create() = RepositoryListInteractor(IGithubRepository.create())
@@ -29,15 +32,25 @@ class RepositoryListPresenter(view: IRepositoryListView, service: IRepositoryLis
 
     init {
         view.loadItems {
-            service.findAll()
+            launchAsync {
+                val result = asyncAwait { service.findAll() }
+                when(result) {
+                    is Result.Success -> view.itemsLoaded(result.data)
+                    is Result.Error -> view.errorCall(result.exception)
+                }
+            }
+
         }
 
         view.searchItems {
-            service.search(it)
+            launchAsync {
+                val result = asyncAwait { service.search(it) }
+                when(result) {
+                    is Result.Success -> view.itemsLoaded(result.data)
+                    is Result.Error -> view.errorCall(result.exception)
+                }
+            }
         }
 
-        service.onReposFound {
-            view.itemsLoaded(it)
-        }
     }
 }

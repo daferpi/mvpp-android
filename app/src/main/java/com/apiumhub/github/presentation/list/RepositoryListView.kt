@@ -3,6 +3,7 @@ package com.apiumhub.github.presentation.list
 import android.os.Bundle
 import android.support.v7.widget.LinearLayoutManager
 import android.view.View
+import android.widget.Toast
 import com.apiumhub.github.R
 import com.apiumhub.github.databinding.ContentMainBinding
 import com.apiumhub.github.domain.entity.Repository
@@ -15,6 +16,10 @@ import io.reactivex.subjects.PublishSubject
 import java.util.concurrent.TimeUnit
 
 open class RepositoryListFragmentInternal : BaseFragment<ContentMainBinding>(), IRepositoryListView {
+    override fun errorCall(error: Throwable) {
+        Toast.makeText(this.context,"Error when tried to executed server call,", Toast.LENGTH_SHORT)
+    }
+
     override fun getLayoutId(): Int = R.layout.content_main
 
     private val loadItemsSubject: PublishSubject<Any> = PublishSubject.create()

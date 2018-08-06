@@ -6,14 +6,16 @@ import com.apiumhub.github.domain.entity.Repository
 import com.apiumhub.github.domain.entity.RepositorySearchDto
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
+import kotlinx.coroutines.experimental.Deferred
+import retrofit2.Response
 import java.util.concurrent.TimeUnit
 
 interface IGithubRepository {
-    fun findAllRepositories(): Observable<List<Repository>>
-    fun searchRepositories(query: String): Observable<RepositorySearchDto>
-    fun getCommitsForRepository(user: String, repository: String): Observable<List<CommitsDto>>
-    fun getBranchesForRepository(user: String, repository: String): Observable<List<BranchDto>>
-    fun getReadmeForRepository(user: String, repository: String): Observable<String>
+    suspend fun findAllRepositories(): Result<List<Repository>>
+    suspend fun searchRepositories(query: String): Result<RepositorySearchDto>
+    suspend fun getCommitsForRepository(user: String, repository: String): Result<List<CommitsDto>>
+    suspend fun getBranchesForRepository(user: String, repository: String): Result<List<BranchDto>>
+    suspend fun getReadmeForRepository(user: String, repository: String): Result<String>
 
     companion object {
         fun create(): IGithubRepository {
@@ -30,43 +32,39 @@ interface IGithubRepository {
 
 class GithubRepository(private val api: GithubApi, private val errorsStream: PublishSubject<Throwable>) : IGithubRepository {
 
-    override fun findAllRepositories(): Observable<List<Repository>> =
-            executeRequest(api.findAllRepositories(), emptyList())
+    override suspend fun findAllRepositories(): Result<List<Repository>> = executeRequest(api.findAllRepositories())
 
-    override fun searchRepositories(query: String): Observable<RepositorySearchDto> =
-            executeRequest(api.searchRepositories(query), RepositorySearchDto(0, true, emptyList()))
+    override suspend  fun searchRepositories(query: String): Result<RepositorySearchDto> =
+            executeRequest(api.searchRepositories(query))
 
-    override fun getCommitsForRepository(user: String, repository: String): Observable<List<CommitsDto>> =
-            executeRequest(api.getCommitsForRepository(user, repository)
-                    //Github API returns 202 while is caching repo statistics. We're encouraged to try again in a few seconds
-                    .doOnNext { if (it.code() == 202) throw StatsCachingException() }
-                    .retryWhen{
-                        //This can be moved outside to a properly parameterized class
-                        var retryCount = 0
-                        val maxRetries = 3
-                        val delaySeconds = 3L
+    override suspend fun getCommitsForRepository(user: String, repository: String): Result<List<CommitsDto>> =
+            executeRequest(api.getCommitsForRepository(user, repository))
 
-                        it.flatMap {
-                            if (it is StatsCachingException){
-                                if (++retryCount < maxRetries) {
-                                    return@flatMap Observable.timer(delaySeconds, TimeUnit.SECONDS)
-                                }
-                            }
-                            return@flatMap Observable.error<Throwable>(it)
-                        }
-                    }
-                    .map { it.body()!! }, emptyList())
 
-    override fun getBranchesForRepository(user: String, repository: String): Observable<List<BranchDto>> =
-            executeRequest(api.getBranchesForRepository(user, repository), emptyList())
+    override suspend fun getBranchesForRepository(user: String, repository: String): Result<List<BranchDto>> =
+            executeRequest(api.getBranchesForRepository(user, repository))
 
-    override fun getReadmeForRepository(user: String, repository: String): Observable<String> =
-            executeRequest(api.getReadmeForRepository(user, repository), String())
+    override suspend fun getReadmeForRepository(user: String, repository: String): Result<String> =
+            executeRequest(api.getReadmeForRepository(user, repository))
 
-    private fun <T> executeRequest(request: Observable<T>, returnOnError: T? = null): Observable<T> {
-        return request.onErrorReturn {
-            errorsStream.onNext(it)
-            returnOnError
+    private suspend fun <T: Any> executeRequest(request: Deferred<Response<T>>):Result<T> {
+
+        var result:Result<T> = Result.Error(Exception())
+        try {
+
+            val response = request.await()
+
+            if (response.isSuccessful) {
+                if (response.body() != null) {
+                    result = Result.Success(response.body()!!)
+                }
+            } else {
+                result = Result.Error(Exception())
+            }
+        } catch (exception:Exception) {
+            System.out.println(exception.localizedMessage)
+            result = Result.Error(Exception())
         }
+        return result
     }
 }
